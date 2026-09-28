@@ -295,7 +295,10 @@ function codeFromURL() {
   return { code: c.trim().toUpperCase() };
 }
 
-/* ---------- registry lookup (the data.json exported from the generator) ---------- */
+/* ---------- registry lookup (live from the Google Sheets API, with
+   the static data.json export kept as a fallback) ---------- */
+const GOOGLE_SHEETS_API = "https://script.google.com/macros/s/AKfycbxyZlrEQOY7wOavz4U0wO-EYo0L95taAGBRB6DbDmETZiQCaPnQSjHvrM2NFg5588rUvg/exec";
+
 async function loadRegistry() {
   for (const url of ['/data.json', 'data.json']) {
     try {
@@ -309,9 +312,20 @@ async function loadRegistry() {
 }
 async function findRecord(code) {
   if (code === '__SAMPLE__') return { ...SAMPLE };
+  const c = code.toUpperCase();
+
+  if (GOOGLE_SHEETS_API) {
+    try {
+      const r = await fetch(GOOGLE_SHEETS_API + '?code=' + encodeURIComponent(c), { cache: 'no-store' });
+      if (r.ok) {
+        const rec = await r.json();
+        if (rec) return rec;
+      }
+    } catch (e) {}
+  }
+
   const list = await loadRegistry();
   if (!list) return null;
-  const c = code.toUpperCase();
   return list.find(r => String(r.verifyCode || '').toUpperCase() === c) || null;
 }
 
