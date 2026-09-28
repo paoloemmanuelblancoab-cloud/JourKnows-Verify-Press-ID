@@ -128,7 +128,7 @@ button,input{font:inherit;color:inherit}
 .wrap{max-width:440px;margin:0 auto}
 .rise{opacity:0;transform:translateY(34px) scale(.98);filter:blur(10px)}
 .result.go .rise{animation:rise .9s var(--ease-out) forwards;animation-delay:calc(var(--i,0) * 110ms + 150ms)}
-@keyframes rise{to{opacity:1;transform:none;filter:blur(0)}}
+@keyframes rise{to{opacity:1;transform:none;filter:none}}
 
 .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;padding:0 4px}
 .logo{height:26px;width:auto;display:block}
@@ -142,9 +142,14 @@ button,input{font:inherit;color:inherit}
 .pass{position:relative;overflow:hidden;border-radius:30px;padding:22px 22px 24px;text-align:center;
   background:linear-gradient(165deg,#0a2bb5 0%,var(--blue) 35%,var(--navy) 100%);
   border:1px solid rgba(255,255,255,.22);
-  box-shadow:0 30px 70px rgba(0,8,50,.6),inset 0 1px 0 rgba(255,255,255,.3);
-  transform:rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .25s ease-out;transform-style:preserve-3d}
-.pass.tilting{transition:none}
+  box-shadow:calc(var(--px,0)*-14px) calc(30px + var(--py,0)*-10px) 70px rgba(0,8,50,.6),inset 0 1px 0 rgba(255,255,255,.3);
+  transform:rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transform-style:preserve-3d;
+  will-change:transform;touch-action:pan-y;-webkit-backface-visibility:hidden;backface-visibility:hidden}
+/* depth: layers drift at different rates against the tilt (--px/--py are -1..1, set by the tilt engine) */
+.pass .pass-top{transform:translate3d(calc(var(--px,0)*4px),calc(var(--py,0)*3px),0)}
+.pass .avatar{transform:translate3d(calc(var(--px,0)*9px),calc(var(--py,0)*7px),0)}
+.pass .p-name,.pass .p-role,.pass .p-desk{transform:translate3d(calc(var(--px,0)*5px),calc(var(--py,0)*4px),0)}
+.pass .p-press{transform:translate3d(calc(var(--px,0)*-8px),calc(var(--py,0)*-6px),0)}
 .pass:before{content:"";position:absolute;left:-25%;right:-25%;top:16%;height:46%;border-radius:50%;background:rgba(220,235,255,.12)}
 .pass:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at var(--mx,50%) var(--my,0%),rgba(255,255,255,.28),transparent 45%);pointer-events:none;mix-blend-mode:soft-light}
 .pass>*{position:relative;z-index:1}
@@ -157,6 +162,9 @@ button,input{font:inherit;color:inherit}
 .p-desk{margin-top:5px;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.6)}
 .p-press{margin-top:30px;font-family:Poppins,var(--sf);font-weight:900;font-size:58px;letter-spacing:10px;margin-right:-10px;line-height:1;color:transparent;-webkit-text-stroke:1.5px rgba(255,255,255,.55)}
 .p-foot{margin-top:8px;font-size:9.5px;font-weight:700;letter-spacing:2.6px;color:rgba(255,255,255,.62)}
+
+.tilt-chip{display:block;margin:14px auto 0;padding:9px 16px;border-radius:99px;border:1px solid var(--glass-line);background:var(--glass);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);font-size:13px;font-weight:600;color:#fff;cursor:pointer;transition:transform .15s,background .15s}
+.tilt-chip:active{transform:scale(.96);background:rgba(255,255,255,.2)}
 
 /* glass primitives */
 .glass{background:var(--glass);border:1px solid var(--glass-line);border-radius:22px;backdrop-filter:blur(34px) saturate(180%);-webkit-backdrop-filter:blur(34px) saturate(180%)}
@@ -404,6 +412,7 @@ function renderFound(r, st) {
         <div class="p-foot">JOURNALISM IS FOR ALL</div>
       </section>
     </div>
+    <button class="tilt-chip rise" id="tiltChip" type="button" style="--i:1;display:none">Tap to enable motion tilt</button>
     <div class="glass banner rise" style="--i:2">
       <div class="b-ic">${ICONS[st === 'active' ? 'active' : st === 'revoked' ? 'bad' : 'warn']}</div>
       <div><div class="b-t">${b.t}</div><div class="b-s">${b.s}</div></div>
@@ -414,6 +423,7 @@ function renderFound(r, st) {
     <div class="actions rise" style="--i:5">
       <button class="act" id="again" type="button">Verify another ID</button>
       <button class="act" id="replay" type="button">Replay verification</button>
+      <button class="act" id="tiltBtn" type="button" style="display:none">Enable tilt effect</button>
     </div>
     <div class="foot rise" style="--i:6"><b>JOURKNOWS PH</b>Cards remain the property of JourKnows PH and may be invalidated when the holder is no longer authorized to represent the organization.</div>`;
 }
@@ -537,38 +547,114 @@ async function copyText(text) {
   }
 }
 
-/* ---------- gyroscope tilt (mirrors the desktop mouse tilt) ---------- */
-let gyroBound = false;
-function applyTiltFromFractions(x, y) {
-  // x, y are 0..1 fractions across the card, same convention the
-  // desktop pointermove handler uses, so the visual result matches.
+/* ---------- tilt engine ----------
+   One eased render loop drives the card. It is fed by:
+   - mouse hover, or touch-and-drag on the card (every device: the fallback)
+   - device orientation (iPhone, Android), calibrated to the way the phone is held */
+const TILT_MAX = 8;        // max card rotation, degrees per axis
+const MOTION_RANGE = 22;   // phone movement (deg) that gives ~76% of TILT_MAX; tanh() soft-limits beyond it
+const MOTION_SIGN = 1;     // 1 = card leans the way the phone leans (as before); -1 = counter-rotates
+const RECENTER_MS = 5000;  // how slowly "neutral" drifts to wherever the phone is held
+
+const tilt = { tx: 0, ty: 0, ta: 0, cx: 0, cy: 0, ca: 0, raf: 0, last: 0, pointer: false };
+const motion = { listening: false, asking: false, seen: false, on: true, base: null, angle: 0 };
+const clamp1 = v => Math.max(-1, Math.min(1, v));
+const wrapDeg = d => ((d + 540) % 360) - 180;
+
+function paintTilt() {
   const pass = $('pass');
-  if (!pass || pass.classList.contains('tilting')) return;
-  pass.style.setProperty('--ry', ((x - .5) * 14).toFixed(2) + 'deg');
-  pass.style.setProperty('--rx', ((.5 - y) * 14).toFixed(2) + 'deg');
-  pass.style.setProperty('--mx', (x * 100) + '%');
-  pass.style.setProperty('--my', (y * 100) + '%');
+  if (!pass) return;
+  const st = pass.style;
+  st.setProperty('--ry', (tilt.cx * TILT_MAX).toFixed(2) + 'deg');
+  st.setProperty('--rx', (-tilt.cy * TILT_MAX).toFixed(2) + 'deg');
+  st.setProperty('--px', tilt.cx.toFixed(3));
+  st.setProperty('--py', tilt.cy.toFixed(3));
+  st.setProperty('--mx', (50 + tilt.cx * 50).toFixed(1) + '%');
+  st.setProperty('--my', (tilt.ca * (50 + tilt.cy * 50)).toFixed(1) + '%');
+}
+function stepTilt(now) {
+  tilt.raf = 0;
+  const dt = Math.max(1, Math.min(64, now - tilt.last));
+  tilt.last = now;
+  const k = 1 - Math.exp(-dt / (tilt.pointer ? 80 : 120));   // frame-rate independent easing
+  tilt.cx += (tilt.tx - tilt.cx) * k;
+  tilt.cy += (tilt.ty - tilt.cy) * k;
+  tilt.ca += (tilt.ta - tilt.ca) * k;
+  paintTilt();
+  if (Math.abs(tilt.tx - tilt.cx) + Math.abs(tilt.ty - tilt.cy) + Math.abs(tilt.ta - tilt.ca) > .0008) {
+    tilt.raf = requestAnimationFrame(stepTilt);
+  }
+}
+function aimTilt(x, y, active) {
+  tilt.tx = clamp1(x); tilt.ty = clamp1(y); tilt.ta = active ? 1 : 0;
+  if (!tilt.raf) { tilt.last = performance.now(); tilt.raf = requestAnimationFrame(stepTilt); }
+}
+function resetTilt() {
+  tilt.tx = tilt.ty = tilt.ta = tilt.cx = tilt.cy = tilt.ca = 0;
+  tilt.pointer = false;
+}
+
+/* ---------- device motion ---------- */
+const iosGate = () => !!window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function';
+const screenAngle = () => {
+  const a = (window.screen && screen.orientation && typeof screen.orientation.angle === 'number')
+    ? screen.orientation.angle : (window.orientation || 0);
+  return ((a % 360) + 360) % 360;
+};
+function onOrient(e) {
+  if (e.beta == null || e.gamma == null) return;        // desktop browsers fire one empty event
+  if (!motion.seen) { motion.seen = true; updateTiltBtn(); }
+  if (!motion.on || tilt.pointer || !$('pass')) return;
+  const now = performance.now(), ang = screenAngle();
+  if (!motion.base || motion.angle !== ang) { motion.base = { b: e.beta, g: e.gamma, t: now }; motion.angle = ang; }
+  const B = motion.base;
+  const db = wrapDeg(e.beta - B.b), dg = wrapDeg(e.gamma - B.g);
+  const k = 1 - Math.exp(-Math.min(100, now - B.t) / RECENTER_MS);
+  B.t = now; B.b += db * k; B.g += dg * k;              // neutral slowly follows how the phone is held
+  let x, y;                                              // map device axes to screen axes
+  switch (ang) {
+    case 90:  x = db;  y = -dg; break;
+    case 180: x = -dg; y = -db; break;
+    case 270: x = -db; y = dg;  break;
+    default:  x = dg;  y = db;
+  }
+  aimTilt(MOTION_SIGN * Math.tanh(x / MOTION_RANGE), MOTION_SIGN * Math.tanh(y / MOTION_RANGE), true);
+}
+function startGyro() {
+  if (motion.listening) return;
+  motion.listening = true;
+  window.addEventListener('deviceorientation', onOrient);
+  document.addEventListener('visibilitychange', () => { motion.base = null; });
 }
 function bindGyro() {
-  if (gyroBound || reduced || !window.DeviceOrientationEvent) return;
-  gyroBound = true;
-  window.addEventListener('deviceorientation', e => {
-    if (e.gamma == null) return;
-    const gx = Math.max(-1, Math.min(1, e.gamma / 30));
-    const gy = Math.max(-1, Math.min(1, ((e.beta || 45) - 45) / 30));
-    applyTiltFromFractions(gx * .5 + .5, gy * .5 + .5);
-  });
+  // iOS 13+ only delivers events after requestGyro() succeeds, so don't start there.
+  if (motion.listening || reduced || !window.DeviceOrientationEvent || iosGate()) return;
+  startGyro();
 }
-function requestGyro() {
-  if (reduced || gyroBound || !window.DeviceOrientationEvent) return;
-  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-    // iOS 13+: must be called directly inside a user-gesture handler.
-    DeviceOrientationEvent.requestPermission().then(state => {
-      if (state === 'granted') bindGyro();
-    }).catch(() => {});
-  } else {
-    bindGyro();
+function needsGyroPrompt() {
+  return !reduced && iosGate() && !motion.listening;
+}
+function requestGyro(silent) {
+  if (reduced || !window.DeviceOrientationEvent || motion.listening || motion.asking) return;
+  if (!iosGate()) return bindGyro();
+  motion.asking = true;
+  // iOS 13+: must be called directly inside a user-gesture handler.
+  DeviceOrientationEvent.requestPermission().then(state => {
+    if (state === 'granted') { motion.on = true; startGyro(); toast('Tilt enabled'); }
+    // iOS returns 'denied' with no popup once denied before; re-enable in Settings > Safari > Motion & Orientation Access.
+    else if (!silent) toast('Tilt blocked — enable it in Settings > Safari');
+  }).catch(() => {
+    if (!silent) toast('Tilt unavailable on this browser');
+  }).finally(() => { motion.asking = false; updateTiltBtn(); });
+}
+function updateTiltBtn() {
+  const ask = needsGyroPrompt();
+  const btn = $('tiltBtn'), chip = $('tiltChip');
+  if (btn) {
+    btn.style.display = (ask || motion.seen) ? '' : 'none';
+    btn.textContent = ask ? 'Enable tilt effect' : motion.on ? 'Tilt effect: On' : 'Tilt effect: Off';
   }
+  if (chip) chip.style.display = ask ? '' : 'none';
 }
 
 function bindResult() {
@@ -577,27 +663,38 @@ function bindResult() {
     buzz(10);
     toast(ok ? b.dataset.msg : 'Copy not available');
   }));
-  const again = $('again'), replay = $('replay');
+  const again = $('again'), replay = $('replay'), tiltBtn = $('tiltBtn');
   if (again) again.onclick = showEntry;
   if (replay) replay.onclick = () => run(currentCode);
+  if (tiltBtn) tiltBtn.onclick = () => {
+    if (needsGyroPrompt()) return requestGyro(false);
+    motion.on = !motion.on; motion.base = null;         // once enabled the button toggles the effect
+    if (!motion.on) aimTilt(0, 0, false);
+    toast(motion.on ? 'Tilt enabled' : 'Tilt off');
+    updateTiltBtn();
+  };
+  const tiltChip = $('tiltChip');
+  if (tiltChip) tiltChip.onclick = () => requestGyro(false);
+  resetTilt();
+  updateTiltBtn();
 
-  // pass tilt + light (desktop pointer)
+  // pass tilt + light: mouse hover, touch-and-drag, and device motion all feed the same engine
   const pass = $('pass');
   if (pass && !reduced) {
-    const move = e => {
+    paintTilt();
+    const aim = e => {
       const r = pass.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-      pass.classList.add('tilting');
-      applyTiltFromFractions(x, y);
+      tilt.pointer = true;
+      aimTilt(((e.clientX - r.left) / r.width - .5) * 2, ((e.clientY - r.top) / r.height - .5) * 2, true);
     };
-    const leave = () => {
-      pass.classList.remove('tilting');
-      pass.style.setProperty('--rx', '0deg'); pass.style.setProperty('--ry', '0deg');
-      pass.style.setProperty('--mx', '50%'); pass.style.setProperty('--my', '0%');
-    };
-    pass.addEventListener('pointermove', move);
-    pass.addEventListener('pointerleave', leave);
-    pass.addEventListener('pointerup', leave);
+    const rest = () => { tilt.pointer = false; aimTilt(0, 0, false); };
+    pass.addEventListener('pointerdown', aim);
+    pass.addEventListener('pointermove', aim);
+    pass.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') rest(); });
+    pass.addEventListener('pointerleave', rest);
+    pass.addEventListener('pointercancel', rest);
+    // tapping the card is a valid gesture for the iOS motion permission prompt
+    pass.addEventListener('click', () => { if (needsGyroPrompt()) requestGyro(true); });
   }
 }
 
