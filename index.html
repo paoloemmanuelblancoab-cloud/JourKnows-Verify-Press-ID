@@ -537,6 +537,40 @@ async function copyText(text) {
   }
 }
 
+/* ---------- gyroscope tilt (mirrors the desktop mouse tilt) ---------- */
+let gyroBound = false;
+function applyTiltFromFractions(x, y) {
+  // x, y are 0..1 fractions across the card, same convention the
+  // desktop pointermove handler uses, so the visual result matches.
+  const pass = $('pass');
+  if (!pass || pass.classList.contains('tilting')) return;
+  pass.style.setProperty('--ry', ((x - .5) * 14).toFixed(2) + 'deg');
+  pass.style.setProperty('--rx', ((.5 - y) * 14).toFixed(2) + 'deg');
+  pass.style.setProperty('--mx', (x * 100) + '%');
+  pass.style.setProperty('--my', (y * 100) + '%');
+}
+function bindGyro() {
+  if (gyroBound || reduced || !window.DeviceOrientationEvent) return;
+  gyroBound = true;
+  window.addEventListener('deviceorientation', e => {
+    if (e.gamma == null) return;
+    const gx = Math.max(-1, Math.min(1, e.gamma / 30));
+    const gy = Math.max(-1, Math.min(1, ((e.beta || 45) - 45) / 30));
+    applyTiltFromFractions(gx * .5 + .5, gy * .5 + .5);
+  });
+}
+function requestGyro() {
+  if (reduced || gyroBound || !window.DeviceOrientationEvent) return;
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS 13+: must be called directly inside a user-gesture handler.
+    DeviceOrientationEvent.requestPermission().then(state => {
+      if (state === 'granted') bindGyro();
+    }).catch(() => {});
+  } else {
+    bindGyro();
+  }
+}
+
 function bindResult() {
   document.querySelectorAll('.row.copy').forEach(b => b.addEventListener('click', async () => {
     const ok = await copyText(b.dataset.copy);
@@ -547,39 +581,23 @@ function bindResult() {
   if (again) again.onclick = showEntry;
   if (replay) replay.onclick = () => run(currentCode);
 
-  // pass tilt + light
+  // pass tilt + light (desktop pointer)
   const pass = $('pass');
-  if (pass) {
+  if (pass && !reduced) {
     const move = e => {
       const r = pass.getBoundingClientRect();
       const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
       pass.classList.add('tilting');
-      pass.style.setProperty('--ry', ((x - .5) * 14).toFixed(2) + 'deg');
-      pass.style.setProperty('--rx', ((.5 - y) * 14).toFixed(2) + 'deg');
-      pass.style.setProperty('--mx', (x * 100) + '%');
-      pass.style.setProperty('--my', (y * 100) + '%');
+      applyTiltFromFractions(x, y);
     };
     const leave = () => {
       pass.classList.remove('tilting');
       pass.style.setProperty('--rx', '0deg'); pass.style.setProperty('--ry', '0deg');
       pass.style.setProperty('--mx', '50%'); pass.style.setProperty('--my', '0%');
     };
-    if (!reduced) {
-      pass.addEventListener('pointermove', move);
-      pass.addEventListener('pointerleave', leave);
-      pass.addEventListener('pointerup', leave);
-    }
-    // gyroscope tilt where allowed (no permission prompt is triggered)
-    if (!reduced && window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission !== 'function') {
-      window.addEventListener('deviceorientation', e => {
-        if (pass.classList.contains('tilting') || e.gamma == null) return;
-        const gx = Math.max(-1, Math.min(1, e.gamma / 30)), gy = Math.max(-1, Math.min(1, ((e.beta || 45) - 45) / 30));
-        pass.style.setProperty('--ry', (gx * 10).toFixed(2) + 'deg');
-        pass.style.setProperty('--rx', (-gy * 10).toFixed(2) + 'deg');
-        pass.style.setProperty('--mx', (50 + gx * 40) + '%');
-        pass.style.setProperty('--my', (30 + gy * 40) + '%');
-      });
-    }
+    pass.addEventListener('pointermove', move);
+    pass.addEventListener('pointerleave', leave);
+    pass.addEventListener('pointerup', leave);
   }
 }
 
@@ -595,14 +613,16 @@ function submitCode() {
   const c = $('codeIn').value.trim().toUpperCase();
   if (!c) { $('codeIn').focus(); return; }
   try { history.replaceState(null, '', '?code=' + encodeURIComponent(c)); } catch (e) {}
+  requestGyro();
   run(c);
 }
 $('codeGo').onclick = submitCode;
 $('codeIn').addEventListener('keydown', e => { if (e.key === 'Enter') submitCode(); });
-$('sampleGo').onclick = () => run('__SAMPLE__');
+$('sampleGo').onclick = () => { requestGyro(); run('__SAMPLE__'); };
 
 /* ---------- boot ---------- */
 (function init() {
+  bindGyro(); // no-op on iOS 13+ until requestGyro() runs after a tap
   const u = codeFromURL();
   if (u.sample) return run('__SAMPLE__');
   if (u.code) return run(u.code);
