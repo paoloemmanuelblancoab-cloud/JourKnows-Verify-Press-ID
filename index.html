@@ -155,8 +155,43 @@ button,input{font:inherit;color:inherit}
 .pass>*{position:relative;z-index:1}
 .pass-top{display:flex;justify-content:space-between;align-items:center}
 .pill{font-size:10px;font-weight:700;letter-spacing:1.6px;padding:6px 10px;border-radius:99px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2)}
-.avatar{width:136px;height:136px;margin:26px auto 18px;border-radius:50%;border:5px solid #fff;overflow:hidden;background:linear-gradient(135deg,#5B8CFF,#00198D);box-shadow:0 14px 34px rgba(0,8,50,.5);display:grid;place-items:center;font-family:Poppins,var(--sf);font-weight:800;font-size:44px}
+.avatar{position:relative;width:136px;height:136px;margin:26px auto 18px;border-radius:50%;border:5px solid #fff;overflow:hidden;background:linear-gradient(135deg,#5B8CFF,#00198D);box-shadow:0 14px 34px rgba(0,8,50,.5);display:grid;place-items:center;font-family:Poppins,var(--sf);font-weight:800;font-size:44px;transform-style:preserve-3d}
 .avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.avatar-base{width:100%;height:100%;object-fit:cover;display:block}
+
+/* ---------- holographic artifact ----------
+   Idle: only the JPEG in the circular frame shows. On interaction the stage below
+   (sits above the avatar, below all ID text) grows a cutout of the person out of the
+   circle. Everything is driven by vars set on #pass by holoTick():
+   --hs size/depth, --ho opacity, --hb photo dim, --hm motion energy (scanlines). */
+/* whole circular frame (ring, photo, shadow) fades out while interacting, fades back in when idle */
+.pass.has-holo .avatar{opacity:calc(1 - var(--hb,0));will-change:opacity}
+.pass .pass-top,.pass .p-name,.pass .p-role,.pass .p-desk,.pass .p-press,.pass .p-foot{z-index:2;position:relative;text-shadow:0 1px 12px rgba(0,8,50,.32)}
+.pass .holo-stage{position:absolute;inset:0;z-index:1;pointer-events:none;visibility:hidden;transform-style:preserve-3d}
+.pass.holo-on .holo-stage{visibility:visible}
+#hFx{position:absolute;inset:0;width:100%;height:100%;transform:translateZ(0);mix-blend-mode:screen}
+.holo-stage:before{content:"";position:absolute;inset:7%;z-index:0;border:1px solid rgba(225,238,255,.14);border-radius:18px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.035),inset 0 0 55px rgba(180,205,255,.045);opacity:var(--ho,0);pointer-events:none}
+.holo-stage:after{content:"ARCHIVAL PRESS ARTIFACT";position:absolute;right:9%;bottom:8%;z-index:4;font-size:7px;letter-spacing:2px;color:rgba(225,238,255,.24);opacity:var(--ho,0);transform:rotate(-90deg);transform-origin:right bottom;pointer-events:none}
+.h-box{position:absolute;opacity:var(--ho,0);will-change:transform,opacity;transform-style:preserve-3d;
+  transform:translate3d(calc(var(--px,0)*-14px),calc(var(--py,0)*-10px),0) scale(calc(1.12 + var(--py,0)*.035))}
+.h-box>*{position:absolute;inset:0;width:100%;height:100%;display:block}
+.hm{-webkit-mask-image:var(--holo-mask);mask-image:var(--holo-mask);-webkit-mask-size:100% 100%;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+.h-echo{opacity:.3;mix-blend-mode:screen;filter:brightness(1.35) saturate(.9) blur(3px);transform:translate3d(calc(var(--px,0)*-10px),calc(var(--py,0)*-7px),0) scale(1.03)}
+.h-echo.b{opacity:.2;filter:brightness(1.3) saturate(.9) blur(1px);transform:translate3d(calc(var(--px,0)*8px),calc(var(--py,0)*6px),0) scale(.98)}
+.h-fig{opacity:.5;animation:hFlick 5.5s linear infinite;
+  filter:brightness(1.22) contrast(1.05) saturate(1.05) drop-shadow(calc(var(--px,0)*-7px) 0 7px rgba(200,222,255,.5))}
+.h-tint{mix-blend-mode:screen;background:linear-gradient(180deg,rgba(235,244,255,.14),rgba(140,175,255,.08) 60%,rgba(70,110,255,.06))}
+.h-light{mix-blend-mode:screen;background:radial-gradient(circle at var(--mx,50%) calc(var(--my,30%) * .8),rgba(255,255,255,.5),transparent 55%)}
+.h-scan{mix-blend-mode:screen;opacity:calc(.25 + .75*var(--hm,0));animation:hScan 3.2s linear infinite;
+  background:repeating-linear-gradient(176deg,rgba(225,238,255,.22) 0 1px,transparent 1px 3px),repeating-linear-gradient(176deg,rgba(255,255,255,.34) 0 1px,transparent 1px 9px)}
+.h-sweep{mix-blend-mode:screen;opacity:calc(.3 + .7*var(--hm,0));background-size:100% 260%;animation:hSweep 2.6s ease-in-out infinite;
+  background-image:linear-gradient(176deg,transparent 42%,rgba(240,247,255,.5) 50%,transparent 58%)}
+.holo-glass{position:absolute;inset:0;z-index:3;pointer-events:none;mix-blend-mode:screen;opacity:calc(var(--ho,0)*.5);
+  background:linear-gradient(115deg,transparent calc(28% + var(--px,0)*16%),rgba(255,255,255,.12) calc(38% + var(--px,0)*16%),transparent calc(48% + var(--px,0)*16%))}
+@keyframes hScan{to{background-position:0 54px}}
+@keyframes hSweep{0%{background-position:0 100%}100%{background-position:0 0}}
+@keyframes hFlick{0%,46%,100%{opacity:.74}48%{opacity:.62}50%{opacity:.78}78%{opacity:.68}}
+@media (prefers-reduced-motion:reduce){.h-fig,.h-scan,.h-sweep{animation:none}}
 .p-name{margin:0;font-family:Poppins,var(--sf);font-weight:900;font-size:clamp(24px,8vw,32px);line-height:1.05;letter-spacing:-.6px;text-transform:uppercase}
 .p-role{margin-top:9px;font-size:13px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:var(--ice)}
 .p-desk{margin-top:5px;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.6)}
@@ -337,6 +372,166 @@ async function findRecord(code) {
   return list.find(r => String(r.verifyCode || '').toUpperCase() === c) || null;
 }
 
+/* ---------- automatic person cutout + holographic artifact ----------
+   In-browser only: MediaPipe Selfie Segmentation (CDN, no API key) cuts the person out once
+   per photo. If it (or a CORS-blocked photo host) fails, the hologram falls back to the
+   photo with a soft bust-shaped mask, so it never breaks. */
+const CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/';
+const cutoutCache = new Map();
+let segmenterPromise = null;
+const sm = (a, b, x) => { x = Math.min(1, Math.max(0, (x - a) / (b - a))); return x * x * (3 - 2 * x); };
+const loadImg = (u, cors) => new Promise((ok, no) => { const i = new Image(); if (cors) i.crossOrigin = 'anonymous'; i.onload = () => ok(i); i.onerror = no; i.src = u; });
+function loadSegmenter() {
+  return segmenterPromise || (segmenterPromise = new Promise((res, rej) => {
+    const mk = () => { try { const g = new SelfieSegmentation({ locateFile: f => CDN + f }); g.setOptions({ modelSelection: 0 }); res(g); } catch (e) { rej(e); } };
+    if (window.SelfieSegmentation) return mk();
+    const t = document.createElement('script'); t.src = CDN + 'selfie_segmentation.js'; t.onload = mk; t.onerror = rej; document.head.appendChild(t);
+  }));
+}
+/* alpha canvas -> cropped PNG + normalized silhouette edge points (spawn sites for fragments) */
+function silhouette(c) {
+  const gw = 48, gh = Math.max(8, Math.round(gw * c.height / c.width)), g = document.createElement('canvas');
+  g.width = gw; g.height = gh; const gx = g.getContext('2d'); gx.drawImage(c, 0, 0, gw, gh);
+  const d = gx.getImageData(0, 0, gw, gh).data;
+  const A = (x, y) => x >= 0 && y >= 0 && x < gw && y < gh && d[(y * gw + x) * 4 + 3] > 110;
+  let x0 = gw, x1 = -1, y0 = gh, y1 = -1;
+  for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) if (A(x, y)) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  if (x1 - x0 < 6 || y1 - y0 < 6) return null;
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1, o = document.createElement('canvas');
+  o.width = Math.round(bw / gw * c.width); o.height = Math.round(bh / gh * c.height);
+  o.getContext('2d').drawImage(c, x0 / gw * c.width, y0 / gh * c.height, o.width, o.height, 0, 0, o.width, o.height);
+  const pts = [];
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++)
+    if (A(x, y) && !(A(x - 1, y) && A(x + 1, y) && A(x, y - 1) && A(x, y + 1))) pts.push([(x + .5 - x0) / bw, (y + .5 - y0) / bh]);
+  return { url: o.toDataURL('image/png'), ar: o.width / o.height, pts };
+}
+function makeCut(url, seg) {
+  if (cutoutCache.has(url + seg)) return cutoutCache.get(url + seg);
+  const p = (async () => {
+    try {
+      const img = await loadImg(url, true), k = Math.min(1, 800 / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
+      const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
+      if (seg) {
+        const sg = await loadSegmenter();
+        const m = await new Promise((ok, no) => { sg.onResults(r => ok(r.segmentationMask)); sg.send({ image: img }).catch(no); });
+        x.filter = 'blur(1.2px)'; x.drawImage(m, 0, 0, w, h); x.filter = 'none'; x.globalCompositeOperation = 'source-in';
+      }
+      x.drawImage(img, 0, 0, w, h);
+      return silhouette(c);
+    } catch (e) { return null; }
+  })();
+  cutoutCache.set(url + seg, p); return p;
+}
+const HOLO_HTML = '<div class="holo-stage" aria-hidden="true"><div class="h-box" id="hBox"><img class="h-echo hm" alt=""><img class="h-echo b hm" alt=""><img class="h-fig hm" alt=""><div class="h-tint hm"></div><div class="h-light hm"></div><div class="h-scan hm"></div><div class="h-sweep hm"></div></div><canvas id="hFx"></canvas></div>';
+const HOLO = { L: 0, e: 0, m: 0, raf: 0, last: 0, fr: [], pts: [], ar: 1, W: 0, H: 0, pw: 0, ph: 0, bl: 0, bt: 0, ox: 0, oy: 0, pcx: 0, pcy: 0, vx: 0, vy: 0, acc: 0, cx: null };
+const ellPts = () => { const a = []; for (let i = 0; i < 90; i++) { const t = i / 90 * 6.283; a.push([.5 + .3 * Math.cos(t), .38 + .36 * Math.sin(t)]); if (i % 3 == 0) a.push([.5 + .5 * Math.cos(t), 1.02 + .3 * Math.sin(t) > 1 ? .9 + .1 * Math.abs(Math.sin(t)) : 1]); } return a; };
+
+function holoLayout() {
+  const H = HOLO, p = $('pass'), box = $('hBox'), cv = $('hFx'), av = p && p.querySelector('.avatar');
+  if (!p || !box || !cv || !av || !p.clientWidth) return;
+  const pw = p.clientWidth, ph = p.clientHeight;
+  let h = ph * 1.02, w = h * H.ar; if (w > pw * 1.08) { w = pw * 1.08; h = w / H.ar; }
+  H.pw = pw; H.ph = ph; H.W = w; H.H = h; H.bl = (pw - w) / 2; H.bt = ph - h - ph * .015;
+  H.ox = av.offsetLeft + av.offsetWidth / 2 - H.bl; H.oy = av.offsetTop + av.offsetHeight / 2 - H.bt;   // figure grows out of the circle
+  Object.assign(box.style, { left: H.bl + 'px', top: H.bt + 'px', width: w + 'px', height: h + 'px' });
+  box.style.setProperty('--ox', H.ox + 'px'); box.style.setProperty('--oy', H.oy + 'px');
+  const d = H.dpr = Math.min(2, devicePixelRatio || 1); cv.width = pw * d; cv.height = ph * d;
+  H.cx = cv.getContext('2d'); H.cx.setTransform(d, 0, 0, d, 0, 0);
+}
+function holoSet(url, r) {
+  const p = $('pass'), box = $('hBox'), fig = box && box.querySelector('.h-fig'); if (!fig) return;
+  p.style.setProperty('--holo-mask', r ? `url("${url}")` : 'radial-gradient(ellipse 46% 56% at 50% 46%,#000 52%,transparent 100%)');
+  HOLO.pts = r ? r.pts : ellPts(); HOLO.tex = fig;
+  fig.onload = () => { HOLO.ar = (r ? r.ar : fig.naturalWidth / fig.naturalHeight) || 1; holoLayout(); };
+  box.querySelectorAll('img').forEach(i => i.src = url);
+}
+function holoInit(src, isCut) {
+  const p = $('pass'); if (!p || !$('hBox') || !src) return;
+  Object.assign(HOLO, { L: 0, e: 0, m: 0, pr: [], pw: 0 });
+  holoSet(src, null);                                   // fallback until (or unless) a real cutout exists
+  makeCut(src, !isCut).then(r => { if (r && $('pass') === p) holoSet(r.url, r); });
+  if (!holoInit.rs) { holoInit.rs = 1; addEventListener('resize', holoLayout); }
+}
+function holoPoke() {
+  const H = HOLO; H.e = 1;
+  if (!H.raf && $('pass')) { H.last = performance.now(); H.raf = requestAnimationFrame(holoTick); }
+}
+/* Live 3D dissolve (a behaviour while you interact, not a transition): the figure stays whole and
+   sheds miniature chips of its own pixels from its silhouette, mostly on the side the card is
+   tilting toward. Chips live in 3D (depth, perspective, spin) and are rotated by the same tilt as the card. */
+const VITRINE = true;   // faint glass-box wireframe around the figure; set false to remove
+const rot = (x, y, z, ay, ax) => {
+  const X = x * Math.cos(ay) + z * Math.sin(ay); let Z = -x * Math.sin(ay) + z * Math.cos(ay);
+  const Y = y * Math.cos(ax) - Z * Math.sin(ax); Z = y * Math.sin(ax) + Z * Math.cos(ax);
+  return [X, Y, Z];
+};
+function holoDir() {                                   // where chips should drift: tilt + current movement
+  let x = tilt.cx + HOLO.vx * .25, y = tilt.cy + HOLO.vy * .25; const l = Math.hypot(x, y);
+  return l < .12 ? [.7, -.35, 0] : [x / l, y / l, Math.min(1, l)];
+}
+function holoSpawn(n) {
+  const H = HOLO; if (!H.pts.length) return;
+  const [dx, dy, mag] = holoDir();
+  for (let i = 0; i < n && H.pr.length < 1200; i++) {
+    let best = null, bs = -9, nx = 0, ny = 0;
+    for (let j = 0; j < 3; j++) {                      // best of 3: prefer edge sites facing the drift direction
+      const q = H.pts[Math.random() * H.pts.length | 0]; let ox = q[0] - .5, oy = q[1] - .42; const l = Math.hypot(ox, oy) || 1; ox /= l; oy /= l;
+      const sc = ox * dx + oy * dy + Math.random() * .8; if (sc > bs) { bs = sc; best = q; nx = ox; ny = oy; }
+    }
+    let vx = dx + nx * .35 + (Math.random() - .5) * .6, vy = dy + ny * .35 + (Math.random() - .5) * .6; const l = Math.hypot(vx, vy) || 1;
+    const sp = (12 + Math.random() * 26) * (1 + 1.8 * mag);
+    H.pr.push({ u: best[0] - nx * Math.random() * .05, v: best[1] - ny * Math.random() * .05, vx: vx / l * sp, vy: vy / l * sp,
+      z: Math.random() * 2 - 1, vz: (Math.random() - .5) * 26, a: 0, life: .75 + Math.random() * 1.25, sz: .34 + Math.random() ** 2 * 1.05, rs: (Math.random() - .5) * 5, r0: Math.random() * 6.28 });
+  }
+}
+function holoTick(now) {
+  const H = HOLO, p = $('pass'); H.raf = 0; if (!p) return;
+  if (p.clientWidth !== H.pw) holoLayout();
+  const dt = Math.max(.001, Math.min(.05, (now - H.last) / 1000)); H.last = now;
+  H.e = Math.max(0, H.e - dt / 1.1);                   // interaction energy: fades ~1s after the last movement
+  const tgt = tilt.pointer ? 1 : H.e, rising = tgt > H.L;
+  H.L += (tgt - H.L) * (1 - Math.exp(-dt / (rising ? .3 : .7)));
+  if (tgt === 0 && H.L < .004) H.L = 0;
+  const L = H.L, st = p.style, ho = reduced ? sm(0, .5, L) * .5 : sm(.1, .7, L) * .5;
+  H.vx = (tilt.cx - H.pcx) / dt; H.vy = (tilt.cy - H.pcy) / dt; H.pcx = tilt.cx; H.pcy = tilt.cy;
+  H.m += (Math.min(1, Math.hypot(H.vx, H.vy) * .9) - H.m) * (1 - Math.exp(-dt / .25));
+  st.setProperty('--ho', ho.toFixed(3));               // the figure itself only fades in/out, in place
+  st.setProperty('--hb', sm(0, .6, L).toFixed(3)); st.setProperty('--hm', H.m.toFixed(3));
+  const c = H.cx, img = H.tex;
+  if (!reduced && c) {
+    c.clearRect(0, 0, H.pw, H.ph);
+    const mag = Math.min(1, Math.hypot(tilt.cx, tilt.cy));
+    if (L > .25) { H.acc = (H.acc || 0) + dt * L * (28 + 150 * mag + 150 * H.m); const n = H.acc | 0; H.acc -= n; if (n) holoSpawn(n); }
+    if (H.burst) { holoSpawn(H.burst); H.burst = 0; }
+    const F = 520, dp = H.dpr || 1, fx = H.bl + H.W / 2 - tilt.cx * 11, fy = H.bt + H.H / 2 - tilt.cy * 8, ay = tilt.cx * .4, ax = -tilt.cy * .3;
+    if (VITRINE && ho > .01) {                         // glass box: thin edges that swing with the tilt
+      const hw = H.W * .48, hh = H.H * .48, hd = 70, V = [];
+      for (let i = 0; i < 8; i++) { const P = rot((i & 1 ? hw : -hw), (i & 2 ? hh : -hh), (i & 4 ? hd : -hd), ay, ax), k = F / (F + P[2]); V.push([fx + P[0] * k, fy + P[1] * k]); }
+      c.strokeStyle = 'rgba(215,232,255,' + (.2 * ho).toFixed(3) + ')'; c.lineWidth = .8; c.beginPath();
+      [[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]].forEach(([a, b]) => { c.moveTo(V[a][0], V[a][1]); c.lineTo(V[b][0], V[b][1]); });
+      c.stroke();
+    }
+    const nw = img && img.naturalWidth, nh = img && img.naturalHeight, fade = sm(0, .25, Math.max(L, .3));
+    for (let i = H.pr.length; i--;) {
+      const q = H.pr[i]; q.a += dt; const t = q.a / q.life;
+      if (t >= 1) { H.pr.splice(i, 1); continue; }
+      const P = rot((q.u - .5) * H.W + q.vx * q.a, (q.v - .5) * H.H + q.vy * q.a, q.z * 105 + q.vz * q.a, ay, ax), k = F / (F + P[2]);
+      const s = Math.max(.28, q.sz * k * (1 + .38 * q.z) * (1 - .32 * t)), al = Math.min(1, q.a / .12) * (1 - t) ** .8 * (.55 + .45 * (q.z + 1) / 2) * fade;
+      const cs = Math.cos(q.r0 + q.rs * q.a), sn = Math.sin(q.r0 + q.rs * q.a);
+      c.setTransform(dp * cs, dp * sn, -dp * sn, dp * cs, dp * (fx + P[0] * k), dp * (fy + P[1] * k));
+      c.globalAlpha = al * .28; c.fillStyle = '#dbe8ff'; c.fillRect(-s / 2 + s * .18, -s / 2 + s * .18, s * .82, s * .82);      // side face = thickness
+      c.globalAlpha = al;
+      if (nw) { const cw = Math.max(1, s / H.W * nw * 1.35); c.drawImage(img, q.u * nw - cw / 2, q.v * nh - cw / 2, cw, cw, -s / 2, -s / 2, s, s); }
+      else { c.fillStyle = '#dfeaff'; c.fillRect(-s / 2, -s / 2, s, s); }
+      if (s > 1.25) { c.globalAlpha = al * .32; c.fillStyle = '#fff'; c.fillRect(-s / 2, -s / 2, s, Math.max(.35, s * .12)); }   // lit top edge
+    }
+    c.setTransform(dp, 0, 0, dp, 0, 0); c.globalAlpha = 1;
+  }
+  p.classList.toggle('holo-on', L > .003 || H.pr.length > 0);
+  if (L > 0 || H.e > 0 || H.pr.length) H.raf = requestAnimationFrame(holoTick);
+}
+
 /* ---------- credential status ---------- */
 function statusOf(r) {
   if ((r.status || '').toLowerCase() === 'revoked') return 'revoked';
@@ -382,7 +577,13 @@ function renderFound(r, st) {
   const b = BANNER[st];
   const name = firstLast(r.holderName);
   const photo = r.photo || r.photoUrl || '';
-  const avatar = photo ? `<img src="${esc(photo)}" alt="${esc(name)}" onerror="this.parentNode.textContent='${esc(initials(r.holderName)).toUpperCase()}'">` : esc(initials(r.holderName)).toUpperCase();
+  // Prefer a transparent cutout for the hologram; fall back through to the
+  // plain photo so records with only `photo` still get a (non-cutout) hologram.
+  const holoSrc = r.photoCutout || r.photoTransparent || r.hologramPhoto || r.photo || r.photoUrl || '';
+  const hasCutout = !!(r.photoCutout || r.photoTransparent || r.hologramPhoto);
+  const avatarSrc = photo || holoSrc;
+  const avatar = avatarSrc ? `
+    <img class="avatar-base" src="${esc(avatarSrc)}" alt="${esc(name)}" onerror="this.closest('.avatar').textContent='${esc(initials(r.holderName)).toUpperCase()}'">` : esc(initials(r.holderName)).toUpperCase();
   const now = new Date();
   const when = now.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }) + ', ' + now.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
   const rows = [
@@ -402,14 +603,16 @@ function renderFound(r, st) {
     ${r._sample ? '<div class="sample rise" style="--i:0">Sample record — not a real credential</div>' : ''}
     <div class="topbar rise" style="--i:0">${LOGO}<span class="live"><i></i>Verified ${esc(when)}</span></div>
     <div class="stage3d rise" style="--i:1">
-      <section class="pass" id="pass">
+      <section class="pass${holoSrc ? ' has-holo' : ''}" id="pass">
         <div class="pass-top"><span class="wm" style="font-size:12px;letter-spacing:1.6px">JOURKNOWS PH</span><span class="pill">PRESS IDENTIFICATION</span></div>
         <div class="avatar">${avatar}</div>
+        ${holoSrc ? HOLO_HTML : ''}
         <h1 class="p-name">${esc(name)}</h1>
         ${r.position ? `<div class="p-role">${esc(r.position)}</div>` : ''}
         ${r.department ? `<div class="p-desk">${esc(r.department)}</div>` : ''}
         <div class="p-press">PRESS</div>
         <div class="p-foot">JOURNALISM IS FOR ALL</div>
+        ${holoSrc ? '<div class="holo-glass" aria-hidden="true"></div>' : ''}
       </section>
     </div>
     <button class="tilt-chip rise" id="tiltChip" type="button" style="--i:1;display:none">Tap to enable motion tilt</button>
@@ -426,6 +629,8 @@ function renderFound(r, st) {
       <button class="act" id="tiltBtn" type="button" style="display:none">Enable tilt effect</button>
     </div>
     <div class="foot rise" style="--i:6"><b>JOURKNOWS PH</b>Cards remain the property of JourKnows PH and may be invalidated when the holder is no longer authorized to represent the organization.</div>`;
+
+  holoInit(holoSrc, hasCutout);
 }
 
 function renderFail(code) {
@@ -586,6 +791,7 @@ function stepTilt(now) {
   }
 }
 function aimTilt(x, y, active) {
+  if (active && (tilt.pointer || Math.abs(x - tilt.tx) + Math.abs(y - tilt.ty) > .012)) holoPoke();   // real movement (mouse, touch, gyro) wakes the hologram
   tilt.tx = clamp1(x); tilt.ty = clamp1(y); tilt.ta = active ? 1 : 0;
   if (!tilt.raf) { tilt.last = performance.now(); tilt.raf = requestAnimationFrame(stepTilt); }
 }
@@ -695,7 +901,8 @@ function bindResult() {
     pass.addEventListener('pointercancel', rest);
     // tapping the card is a valid gesture for the iOS motion permission prompt
     pass.addEventListener('click', () => { if (needsGyroPrompt()) requestGyro(true); });
-  }
+    pass.addEventListener('click', () => { HOLO.burst = 28; holoPoke(); });   // tap = small burst of chips
+  } else if (pass) ['pointerenter', 'pointerdown', 'click'].forEach(n => pass.addEventListener(n, holoPoke));   // reduced motion: static crossfade only
 }
 
 function showEntry() {
