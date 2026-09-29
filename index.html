@@ -167,7 +167,7 @@ button,input{font:inherit;color:inherit}
 /* whole circular frame (ring, photo, shadow) fades out while interacting, fades back in when idle */
 .pass.has-holo .avatar{opacity:calc(1 - var(--hb,0));will-change:opacity}
 .pass .pass-top,.pass .p-name,.pass .p-role,.pass .p-desk,.pass .p-press,.pass .p-foot{z-index:2;position:relative;text-shadow:0 1px 12px rgba(0,8,50,.32)}
-.pass .holo-stage{position:absolute;inset:0;z-index:1;pointer-events:none;visibility:hidden;transform-style:preserve-3d}
+.pass .holo-stage{position:absolute;inset:0;z-index:1;pointer-events:none;visibility:hidden;border-radius:29px;overflow:hidden;-webkit-clip-path:inset(0 round 29px);clip-path:inset(0 round 29px)}   /* locks the hologram + flying chips inside the card's rounded corners (overflow alone leaks on Safari/iOS with 3D children) */
 .pass.holo-on .holo-stage{visibility:visible}
 #hFx{position:absolute;inset:0;width:100%;height:100%;transform:translateZ(0);mix-blend-mode:screen}
 .holo-stage:before{content:"";position:absolute;inset:7%;z-index:0;border:1px solid rgba(225,238,255,.14);border-radius:18px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.035),inset 0 0 55px rgba(180,205,255,.045);opacity:var(--ho,0);pointer-events:none}
@@ -186,7 +186,7 @@ button,input{font:inherit;color:inherit}
   background:repeating-linear-gradient(176deg,rgba(225,238,255,.22) 0 1px,transparent 1px 3px),repeating-linear-gradient(176deg,rgba(255,255,255,.34) 0 1px,transparent 1px 9px)}
 .h-sweep{mix-blend-mode:screen;opacity:calc(.3 + .7*var(--hm,0));background-size:100% 260%;animation:hSweep 2.6s ease-in-out infinite;
   background-image:linear-gradient(176deg,transparent 42%,rgba(240,247,255,.5) 50%,transparent 58%)}
-.holo-glass{position:absolute;inset:0;z-index:3;pointer-events:none;mix-blend-mode:screen;opacity:calc(var(--ho,0)*.5);
+.holo-glass{position:absolute;inset:0;z-index:3;pointer-events:none;border-radius:29px;-webkit-clip-path:inset(0 round 29px);clip-path:inset(0 round 29px);mix-blend-mode:screen;opacity:calc(var(--ho,0)*.5);
   background:linear-gradient(115deg,transparent calc(28% + var(--px,0)*16%),rgba(255,255,255,.12) calc(38% + var(--px,0)*16%),transparent calc(48% + var(--px,0)*16%))}
 @keyframes hScan{to{background-position:0 54px}}
 @keyframes hSweep{0%{background-position:0 100%}100%{background-position:0 0}}
